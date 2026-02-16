@@ -1,3 +1,7 @@
+# ansible-playbook -i localhost, \
+#-e '{"instances":["mongodb","catalogue","redis","user","cart","mysql","shipping","rabbitmq","payment","frontend"]}' \
+#roboshop.yaml
+
 - name: create ec2 and r53 records
   hosts: all
   connection: local
@@ -6,6 +10,7 @@
     ami_id: ami-0220d79f3f480ecf5
     domain_name: anand88b.online
     env: dev
+    action: create
     instances:
     - mongodb
     - catalogue
@@ -23,9 +28,12 @@
         Name: "{{ item }}-{{ env }}"
     loop: "{{ instances }}"  
     register: ec2_output
+    when: action == "create"
+
   - name: print the ec2 ec2_output
     ansible.builtin.debug:
-      msg: "{{ ec2_output }}"  
+      msg: "{{ ec2_output }}" 
+    when: action == "create"   
        
   - name: create rout53 records
     amazon.aws.route53:
@@ -35,8 +43,10 @@
       type: A
       ttl: 1
       value: "{{ item.instances[0].private_ip_address }}"
-      wait: true 
-    loop: "{{ ec2_output.results }}"  
+      wait: false 
+      overwrite: true
+    loop: "{{ ec2_output.results }}" 
+    when: action == "create"
  
   - name: create rout53 records
     amazon.aws.route53:
@@ -46,6 +56,27 @@
       type: A
       ttl: 1
       value: "{{ item.instances[0].public_ip_address }}"
-      wait: true 
+      wait: false
+      overwrite: true 
     loop: "{{ ec2_output.results }}"
-    when: item.item == "frontend"
+    when: 
+    - item.item == "frontend"
+    - action == "create"
+
+  - name: delete rout53 records
+    amazon.aws.route53:
+      state: absent
+      zone: "{{ domain_name }}"
+      record: "{{ item }}-{{ env }}.{{ domain_name }}"
+      type: A
+      ttl: 1  
+    loop: "{{ instances }}" 
+    when: action == "destory" 
+
+  - name: delete ec2 instance
+    amazon.aws.ec2_instance:
+      state: absent
+      name: "{{ item }}-{{ env }}"
+    loop: "{{ instances }}"
+    when: action == "destory"  
+
