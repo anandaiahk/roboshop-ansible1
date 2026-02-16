@@ -26,7 +26,7 @@
   - name: create app directtory
     ansible.builtin.file:
       path: /app
-      state: directtory   
+      state: directory   
 
   - name: delete the zip directtory
     ansible.builtin.file:
